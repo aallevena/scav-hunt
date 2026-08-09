@@ -1,0 +1,233 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// --- Auth (NextAuth / Auth.js Prisma adapter shape) ---
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String?   @unique
+  emailVerified DateTime?
+  image         String?
+
+  accounts Account[]
+  sessions Session[]
+
+  hunts           Hunt[]           @relation("HuntCreator")
+  huntProgress    HuntProgress[]
+  clueCompletions ClueCompletion[]
+  upvotes         Upvote[]
+  eventEntries    EventParticipant[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+// --- Core domain ---
+
+enum ClueInputType {
+  TEXT_PASSWORD
+  GEOLOCATION
+  QR_BARCODE
+  PHOTO_MATCH
+}
+
+model Hunt {
+  id          String   @id @default(cuid())
+  title       String
+  description String
+  ordered     Boolean  @default(true)
+  published   Boolean  @default(false)
+
+  creatorId String
+  creator   User   @relation("HuntCreator", fields: [creatorId], references: [id])
+
+  clues    Clue[]
+  tags     TagsOnHunts[]
+  progress HuntProgress[]
+  upvotes  Upvote[]
+  events   Event[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([published])
+}
+
+model Clue {
+  id    String @id @default(cuid())
+  huntId String
+  hunt   Hunt   @relation(fields: [huntId], references: [id], onDelete: Cascade)
+
+  orderIndex Int
+  title      String
+  prompt     String
+
+  latitude  Float?
+  longitude Float?
+  locationLabel String?
+
+  inputType         ClueInputType
+  // Verification data, never sent to the client. Shape depends on inputType,
+  // e.g. { "password": "..." } or { "radiusMeters": 50 }.
+  verificationConfig Json
+
+  hint String?
+
+  completions ClueCompletion[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([huntId, orderIndex])
+  @@index([huntId])
+}
+
+model Tag {
+  id   String @id @default(cuid())
+  name String @unique
+
+  hunts TagsOnHunts[]
+}
+
+model TagsOnHunts {
+  huntId String
+  tagId  String
+
+  hunt Hunt @relation(fields: [huntId], references: [id], onDelete: Cascade)
+  tag  Tag  @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([huntId, tagId])
+}
+
+enum HuntProgressStatus {
+  NOT_STARTED
+  IN_PROGRESS
+  COMPLETED
+}
+
+model HuntProgress {
+  id     String @id @default(cuid())
+  userId String
+  huntId String
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  hunt Hunt @relation(fields: [huntId], references: [id], onDelete: Cascade)
+
+  status           HuntProgressStatus @default(NOT_STARTED)
+  currentClueIndex Int                @default(0)
+
+  startedAt   DateTime?
+  completedAt DateTime?
+
+  @@unique([userId, huntId])
+}
+
+model ClueCompletion {
+  id     String @id @default(cuid())
+  userId String
+  clueId String
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  clue Clue @relation(fields: [clueId], references: [id], onDelete: Cascade)
+
+  completedAt DateTime @default(now())
+  // Raw submission for auditing (e.g. lat/lng submitted, not the QR payload's secret)
+  attemptData Json?
+
+  @@unique([userId, clueId])
+}
+
+model Upvote {
+  id     String @id @default(cuid())
+  userId String
+  huntId String
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  hunt Hunt @relation(fields: [huntId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@unique([userId, huntId])
+}
+
+enum EventStatus {
+  UPCOMING
+  LIVE
+  FINISHED
+}
+
+model Event {
+  id     String @id @default(cuid())
+  huntId String
+  hunt   Hunt   @relation(fields: [huntId], references: [id], onDelete: Cascade)
+
+  name      String
+  status    EventStatus @default(UPCOMING)
+  startTime DateTime?
+  endTime   DateTime?
+
+  participants EventParticipant[]
+
+  createdAt DateTime @default(now())
+}
+
+model EventParticipant {
+  id      String @id @default(cuid())
+  eventId String
+  userId  String
+
+  event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  joinedAt   DateTime  @default(now())
+  finishedAt DateTime?
+  rank       Int?
+
+  @@unique([eventId, userId])
+}
