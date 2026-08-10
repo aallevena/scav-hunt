@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { verifyClueSubmission } from "@/lib/verify-clue";
+import type { Prisma } from "@/generated/prisma/client";
 
 export async function POST(
   request: Request,
@@ -60,7 +61,11 @@ export async function POST(
     await tx.clueCompletion.upsert({
       where: { userId_clueId: { userId, clueId } },
       update: {},
-      create: { userId, clueId, attemptData: submission },
+      create: {
+        userId,
+        clueId,
+        attemptData: submission as Prisma.InputJsonValue,
+      },
     });
 
     const progress = await tx.huntProgress.upsert({
