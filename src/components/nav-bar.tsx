@@ -25,6 +25,11 @@ export async function NavBar() {
               <Link href="/profile" className="hover:underline">
                 Profile
               </Link>
+              {session.user.isAdmin && (
+                <Link href="/admin" className="hover:underline">
+                  Admin
+                </Link>
+              )}
               <form
                 action={async () => {
                   "use server";

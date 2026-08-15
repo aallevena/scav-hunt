@@ -51,3 +51,6 @@ skills-lock.json
 
 # local-only Claude Code permissions
 .claude/settings.local.json
+
+.vercel
+.env*

@@ -18,6 +18,7 @@ model User {
   email         String?   @unique
   emailVerified DateTime?
   image         String?
+  isAdmin       Boolean   @default(false)
 
   accounts Account[]
   sessions Session[]
@@ -30,6 +31,15 @@ model User {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+// Emails an admin has invited to sign in. Checked at sign-in time; once the
+// person signs in they become a real User row and this entry is just history.
+model AllowedEmail {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  addedByEmail String?
+  createdAt    DateTime @default(now())
 }
 
 model Account {
